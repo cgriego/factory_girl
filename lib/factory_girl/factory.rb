@@ -39,6 +39,7 @@ module FactoryGirl
       @options        = options
       @attribute_list = AttributeList.new
       @traits         = []
+      @children   = []
     end
 
     def inherit_from(parent) #:nodoc:
@@ -56,6 +57,16 @@ module FactoryGirl
 
     def apply_attributes(attributes_to_apply)
       @attribute_list.apply_attributes(attributes_to_apply)
+      parent.add_child_once(self)
+      update_children
+    end
+
+    def update_children
+      @children.each { |child| child.inherit_from(self) }
+    end
+
+    def add_child_once(child)
+      @children << child unless @children.include?(child)
     end
 
     def define_attribute(attribute)
@@ -75,7 +86,15 @@ module FactoryGirl
     end
 
     def attributes
+      update_children
       @attribute_list.to_a
+    end
+
+    def add_callback(name, &block)
+      unless [:after_build, :after_create, :after_stub].include?(name.to_sym)
+        raise InvalidCallbackNameError, "#{name} is not a valid callback name. Valid callback names are :after_build, :after_create, and :after_stub"
+      end
+      @attributes << Attribute::Callback.new(name.to_sym, block).tap { update_children }
     end
 
     def run(proxy_class, overrides) #:nodoc:
