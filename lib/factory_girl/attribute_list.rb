@@ -8,7 +8,7 @@ module FactoryGirl
     end
 
     def define_attribute(attribute)
-      if !@overridable && attribute_defined?(attribute.name)
+      if !overridable? && attribute_defined?(attribute.name)
         raise AttributeDefinitionError, "Attribute already defined: #{attribute.name}"
       end
 
@@ -65,15 +65,14 @@ module FactoryGirl
     end
 
     def add_attribute(attribute)
-      if @overridable && defined_attribute = find_attribute(attribute.name)
-        @attributes.keys.each do |priority|
-          @attributes[priority].delete_if {|attr| attr.name == defined_attribute.name }
+      if overridable? && attribute_defined?(attribute.name)
+        @attributes.each_value do |attributes|
+          attributes.delete_if {|attrib| attrib.name == attribute.name }
         end
       end
 
       @attributes[attribute.priority] ||= []
       @attributes[attribute.priority] << attribute
-
       attribute
     end
 
