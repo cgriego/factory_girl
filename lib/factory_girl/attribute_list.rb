@@ -4,10 +4,11 @@ module FactoryGirl
 
     def initialize
       @attributes = {}
+      @overridable = false
     end
 
     def define_attribute(attribute)
-      if attribute_defined?(attribute.name)
+      if !@overridable && attribute_defined?(attribute.name)
         raise AttributeDefinitionError, "Attribute already defined: #{attribute.name}"
       end
 
@@ -27,10 +28,7 @@ module FactoryGirl
     end
 
     def attribute_defined?(attribute_name)
-      !@attributes.values.flatten.detect do |attribute|
-        attribute.name == attribute_name &&
-          !attribute.is_a?(FactoryGirl::Attribute::Callback)
-      end.nil?
+      !!find_attribute(attribute_name)
     end
 
     def apply_attributes(attributes_to_apply)
@@ -40,15 +38,24 @@ module FactoryGirl
         if attribute_defined?(attribute.name)
           @attributes.each_value do |attributes|
             attributes.delete_if do |attrib|
-              new_attributes << attrib.clone if attrib.name == attribute.name
+              new_attribute = overridable? ? attribute : attrib
+              new_attributes << new_attribute if attrib.name == attribute.name
             end
           end
         else
-          new_attributes << attribute.clone
+          new_attributes << attribute
         end
       end
 
       prepend_attributes new_attributes
+    end
+
+    def overridable!
+      @overridable = true
+    end
+
+    def overridable?
+      @overridable
     end
 
     private
@@ -58,8 +65,15 @@ module FactoryGirl
     end
 
     def add_attribute(attribute)
+      if @overridable && defined_attribute = find_attribute(attribute.name)
+        @attributes.keys.each do |priority|
+          @attributes[priority].delete_if {|attr| attr.name == defined_attribute.name }
+        end
+      end
+
       @attributes[attribute.priority] ||= []
       @attributes[attribute.priority] << attribute
+
       attribute
     end
 
@@ -75,6 +89,13 @@ module FactoryGirl
         result << @attributes[key]
         result
       end.flatten
+    end
+
+    def find_attribute(attribute_name)
+      @attributes.values.flatten.detect do |attribute|
+        attribute.name == attribute_name &&
+          !attribute.is_a?(FactoryGirl::Attribute::Callback)
+      end
     end
   end
 end

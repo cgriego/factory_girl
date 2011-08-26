@@ -44,9 +44,13 @@ module FactoryGirl
         end
       end
 
-      class ModifyDSL < DSL
+      class ModifyDSL
+        def self.run(block)
+          new.instance_eval(&block)
+        end
+
         def factory(name, options = {}, &block)
-          factory = FactoryGirl.factory_by_name(name)
+          factory = FactoryGirl.factory_by_name(name).allow_overrides!
           proxy = FactoryGirl::DefinitionProxy.new(factory)
           proxy.instance_eval(&block)
         end

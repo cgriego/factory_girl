@@ -38,15 +38,36 @@ module FactoryGirl
       @parent         = options[:parent]
       @options        = options
       @attribute_list = AttributeList.new
+      @inherited_attribute_list = AttributeList.new
       @traits         = []
-      @children   = []
+      @children       = []
+    end
+
+    def allow_overrides!
+      @attribute_list.overridable!
+      @inherited_attribute_list.overridable!
+      self
+    end
+
+    def allow_overrides?
+      @attribute_list.overridable?
     end
 
     def inherit_from(parent) #:nodoc:
       @options[:class]            ||= parent.class_name
       @options[:default_strategy] ||= parent.default_strategy
 
-      apply_attributes(parent.attributes)
+      allow_overrides! if parent.allow_overrides?
+      parent.add_child(self)
+      @inherited_attribute_list.apply_attributes(parent.attributes)
+    end
+
+    def add_child(factory)
+      @children << factory unless @children.include?(factory)
+    end
+
+    def update_children
+      @children.each { |child| child.inherit_from(self) }
     end
 
     def apply_traits(traits) #:nodoc:
@@ -57,16 +78,6 @@ module FactoryGirl
 
     def apply_attributes(attributes_to_apply)
       @attribute_list.apply_attributes(attributes_to_apply)
-      parent.add_child_once(self)
-      update_children
-    end
-
-    def update_children
-      @children.each { |child| child.inherit_from(self) }
-    end
-
-    def add_child_once(child)
-      @children << child unless @children.include?(child)
     end
 
     def define_attribute(attribute)
@@ -74,7 +85,7 @@ module FactoryGirl
         raise AssociationDefinitionError, "Self-referencing association '#{attribute.name}' in factory '#{self.name}'"
       end
 
-      @attribute_list.define_attribute(attribute)
+      @attribute_list.define_attribute(attribute).tap { update_children }
     end
 
     def define_trait(trait)
@@ -86,21 +97,17 @@ module FactoryGirl
     end
 
     def attributes
-      update_children
-      @attribute_list.to_a
-    end
-
-    def add_callback(name, &block)
-      unless [:after_build, :after_create, :after_stub].include?(name.to_sym)
-        raise InvalidCallbackNameError, "#{name} is not a valid callback name. Valid callback names are :after_build, :after_create, and :after_stub"
-      end
-      @attributes << Attribute::Callback.new(name.to_sym, block).tap { update_children }
+      AttributeList.new.tap do |list|
+        list.apply_attributes(@attribute_list)
+        list.apply_attributes(@inherited_attribute_list)
+      end.to_a
     end
 
     def run(proxy_class, overrides) #:nodoc:
       proxy = proxy_class.new(build_class)
       overrides = symbolize_keys(overrides)
-      @attribute_list.each do |attribute|
+
+      attributes.each do |attribute|
         factory_overrides = overrides.select { |attr, val| attribute.aliases_for?(attr) }
         if factory_overrides.empty?
           attribute.add_to(proxy)
