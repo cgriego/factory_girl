@@ -3,7 +3,7 @@ module FactoryGirl
     include Enumerable
 
     def initialize
-      @attributes = {}
+      @attributes  = {}
       @overridable = false
     end
 
@@ -35,16 +35,14 @@ module FactoryGirl
       new_attributes = []
 
       attributes_to_apply.each do |attribute|
-        if attribute_defined?(attribute.name)
-          @attributes.each_value do |attributes|
-            attributes.delete_if do |attrib|
-              new_attribute = overridable? ? attribute : attrib
-              new_attributes << new_attribute if attrib.name == attribute.name
-            end
-          end
+        new_attribute = if !overridable? && defined_attribute = find_attribute(attribute.name)
+          defined_attribute
         else
-          new_attributes << attribute
+          attribute
         end
+
+        delete_attribute(attribute.name)
+        new_attributes << new_attribute
       end
 
       prepend_attributes new_attributes
@@ -65,11 +63,7 @@ module FactoryGirl
     end
 
     def add_attribute(attribute)
-      if overridable? && attribute_defined?(attribute.name)
-        @attributes.each_value do |attributes|
-          attributes.delete_if {|attrib| attrib.name == attribute.name }
-        end
-      end
+      delete_attribute(attribute.name) if overridable?
 
       @attributes[attribute.priority] ||= []
       @attributes[attribute.priority] << attribute
@@ -94,6 +88,14 @@ module FactoryGirl
       @attributes.values.flatten.detect do |attribute|
         attribute.name == attribute_name &&
           !attribute.is_a?(FactoryGirl::Attribute::Callback)
+      end
+    end
+
+    def delete_attribute(attribute_name)
+      if attribute_defined?(attribute_name)
+        @attributes.each_value do |attributes|
+          attributes.delete_if {|attrib| attrib.name == attribute_name }
+        end
       end
     end
   end

@@ -137,4 +137,35 @@ describe FactoryGirl::AttributeList, "#apply_attributes" do
     subject.apply_attributes([attribute_with_same_name])
     subject.to_a.should == [full_name_attribute]
   end
+
+  context "when set as overridable" do
+    before { subject.overridable! }
+
+    it "prepends applied attributes" do
+      subject.define_attribute(full_name_attribute)
+      subject.apply_attributes([city_attribute])
+      subject.to_a.should == [city_attribute, full_name_attribute]
+    end
+
+    it "moves non-static attributes to the end of the list" do
+      subject.define_attribute(full_name_attribute)
+      subject.apply_attributes([city_attribute, email_attribute])
+      subject.to_a.should == [city_attribute, full_name_attribute, email_attribute]
+    end
+
+    it "maintains order of non-static attributes" do
+      subject.define_attribute(full_name_attribute)
+      subject.define_attribute(login_attribute)
+      subject.apply_attributes([city_attribute, email_attribute])
+      subject.to_a.should == [city_attribute, full_name_attribute, email_attribute, login_attribute]
+    end
+
+    it "overwrites attributes that are already defined" do
+      subject.define_attribute(full_name_attribute)
+      attribute_with_same_name = FactoryGirl::Attribute::Static.new(:full_name, "Benjamin Franklin")
+
+      subject.apply_attributes([attribute_with_same_name])
+      subject.to_a.should == [attribute_with_same_name]
+    end
+  end
 end
